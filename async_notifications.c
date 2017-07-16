@@ -1,8 +1,10 @@
 #include <stdio.h>
 #include <mysql/plugin.h>
 #include <mysql/plugin_audit.h>
+#include <string.h>
+#include <channel.h>
 
-static FILE * _log = (FILE * )0;
+static channel connection;
 
 static int async_notifications_notify(MYSQL_THD thd, 
         mysql_event_class_t event_class,
@@ -12,9 +14,16 @@ static int async_notifications_notify(MYSQL_THD thd,
         const struct mysql_event_table_access *event_table = 
             (const struct mysql_event_table_access *)event;
 
-        fprintf(_log, "Access event on table [%s].[%s]\n", event_table->table_database.str
-                , event_table->table_name.str);
-        fflush(_log);
+        // todo fprintf
+        const char* format = "Access event on table [%s].[%s]\n";
+        const char* database = event_table->table_database.str;
+        const char* table = event_table->table_name.str;
+        size_t buf_size = (strlen(format) - 4) + strlen(database) + strlen(table) + 1;
+        char buf[buf_size];
+        memset(&buf, 0, buf_size);
+
+        snprintf(buf, buf_size, format, database, table);
+        async_put(connection, buf);
     }
 
     return 0;
@@ -42,21 +51,16 @@ static struct st_mysql_audit async_notifications_descriptor =
 
 static int async_notifications_init(void *arg MY_ATTRIBUTE((unused)))
 {
-    _log = fopen("/tmp/async_notifications.log", "a");
-    if (_log == (FILE *)NULL) {
-        return errno;
-    } else {
-        fprintf(_log, "Init async notification log\n");
-        fflush(_log);
-    }
+    connection = create_channel("127.0.0.1", "12345");
     return 0;
 }
 
 static int async_notifications_deinit(void *arg MY_ATTRIBUTE((unused)))
 {
-    if (_log != (FILE *)0) {
-        fprintf(_log, "Deinit async notification log\n");
-        fclose(_log);
+
+    if (connection) {
+        destroy_channel(connection);
+        connection = 0;
     }
 
     return 0;
