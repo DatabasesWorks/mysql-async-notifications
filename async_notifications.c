@@ -1,10 +1,37 @@
 #include <stdio.h>
+#include <sys/time.h>
+#include <stdlib.h>
+
 #include <mysql/plugin.h>
 #include <mysql/plugin_audit.h>
 #include <string.h>
 #include <channel.h>
 
+#ifndef PSI_NO_INSTRUMENTATION
+#define PSI_NO_INSTRUMENTATION 0
+#endif
+
 static channel connection;
+
+/* -----------------------
+ * Plugin system variables
+ * -----------------------
+ */
+static char* an_service_endpoint_host = NULL;
+static unsigned int an_service_endpoint_port = 12345;
+/* ------------------------ */
+
+static char async_notifications_status[] = "Ok";
+
+static MYSQL_SYSVAR_STR(service_endpoint_host, an_service_endpoint_host,
+        PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
+        "Hostname of endpoint to which notifications are sent",
+        NULL, NULL, "127.0.0.1");
+
+static MYSQL_SYSVAR_UINT(service_endpoint_port, an_service_endpoint_port,
+        PLUGIN_VAR_OPCMDARG,
+        "Port number of endpoint to which notifications are sent",
+        NULL, NULL, 12345, 1, 65535, 0);
 
 static int async_notifications_notify(MYSQL_THD thd, 
         mysql_event_class_t event_class,
@@ -15,15 +42,22 @@ static int async_notifications_notify(MYSQL_THD thd,
             (const struct mysql_event_table_access *)event;
 
         // todo fprintf
-        const char* format = "Access event on table [%s].[%s]\n";
+        const char* format = "{ 'schema': '%s', 'table': '%s', 'ts': %ld%ld }\n";
+        
         const char* database = event_table->table_database.str;
         const char* table = event_table->table_name.str;
-        size_t buf_size = (strlen(format) - 4) + strlen(database) + strlen(table) + 1;
+        struct timeval now;
+        if (gettimeofday(&now, (void*)0) != 0) {
+            return errno;
+        }
+
+        // 19 = max length of unsigned long long when interpreted as string
+        size_t buf_size = (strlen(format) - 8) + strlen(database) + strlen(table) + 19 + 1;
         char buf[buf_size];
         memset(&buf, 0, buf_size);
 
-        snprintf(buf, buf_size, format, database, table);
-        async_put(connection, buf);
+        snprintf(buf, sizeof(buf), format, database, table, (long int)now.tv_sec, (long int)now.tv_usec);
+        channel_put(connection, buf);
     }
 
     return 0;
@@ -51,13 +85,16 @@ static struct st_mysql_audit async_notifications_descriptor =
 
 static int async_notifications_init(void *arg MY_ATTRIBUTE((unused)))
 {
-    connection = create_channel("127.0.0.1", "12345");
+    char port[sizeof(unsigned int) * 8 + 1];
+    memset(&port, 0, sizeof(port));
+    sprintf(port, "%u", an_service_endpoint_port);
+    connection = create_channel(an_service_endpoint_host, port);
+
     return 0;
 }
 
 static int async_notifications_deinit(void *arg MY_ATTRIBUTE((unused)))
 {
-
     if (connection) {
         destroy_channel(connection);
         connection = 0;
@@ -66,10 +103,10 @@ static int async_notifications_deinit(void *arg MY_ATTRIBUTE((unused)))
     return 0;
 }
 
-static struct st_mysql_show_var status[] =
+static struct st_mysql_show_var simple_status[] =
 {
     { "Async_Notifications_Status",
-        "OK",
+        async_notifications_status,
         SHOW_CHAR_PTR, SHOW_SCOPE_GLOBAL
     },
     { 0, 0, 0, SHOW_SCOPE_GLOBAL }
@@ -77,6 +114,8 @@ static struct st_mysql_show_var status[] =
 
 static struct st_mysql_sys_var* system_variables[] = 
 {
+    MYSQL_SYSVAR(service_endpoint_host),
+    MYSQL_SYSVAR(service_endpoint_port),
     NULL
 };
 
@@ -92,7 +131,7 @@ mysql_declare_plugin(async_notifications)
     async_notifications_init,                       /* init function (when laded)       */
     async_notifications_deinit,                     /* deinit function (when unloaded)  */
     0x0001,                                         /* version                          */
-    status,                                         /* status variables                 */
+    simple_status,                                         /* status variables                 */
     system_variables,                               /* system variables                 */
     NULL,                                           /* reserved for dependency checks   */
     0,                                              /* flags for plugin                 */

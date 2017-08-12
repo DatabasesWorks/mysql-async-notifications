@@ -1,7 +1,7 @@
 INCLUDE_DIRECTORIES("./include")
 
 SET(ASYNC_NOTIFICATIONS_SOURCES
-    channel.c
+    channel/channel.c
     async_notifications.c
 )
 

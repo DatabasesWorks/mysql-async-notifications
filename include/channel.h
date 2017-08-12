@@ -23,6 +23,6 @@ int destroy_channel(channel channel);
  *
  * @return a status code indicating success or failure.
  */
-int async_put(const channel channel, const char* message);
+int channel_put(const channel channel, const char* message);
 
 #endif

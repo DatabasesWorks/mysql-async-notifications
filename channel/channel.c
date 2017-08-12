@@ -31,7 +31,7 @@ int destroy_channel(channel channel)
     return close(channel);
 }
 
-int async_put(const channel channel, const char* message)
+int channel_put(const channel channel, const char* message)
 {
     int len = strlen(message);
     return send((const int)channel, message, len, 0);
