@@ -11,7 +11,7 @@
 #define PSI_NO_INSTRUMENTATION 0
 #endif
 
-static channel connection;
+static channel_t* connection = NULL;
 
 /* -----------------------
  * Plugin system variables
@@ -19,9 +19,51 @@ static channel connection;
  */
 static char* an_service_endpoint_host = NULL;
 static unsigned int an_service_endpoint_port = 12345;
+static char an_service_endpoint_registered = 0;
 /* ------------------------ */
 
 static char async_notifications_status[] = "Ok";
+
+static int check_registration_status(MYSQL_THD thd MY_ATTRIBUTE((unused)), 
+        struct st_mysql_sys_var* var MY_ATTRIBUTE((unused)), void* temp_storage, 
+        struct st_mysql_value* value)
+{
+    int status = value->val_int(value, (long long*)temp_storage);
+
+    switch (status) {
+        case 0:
+        case 1:
+            return 0;
+        default:
+            return 1;
+    }
+
+    return 0;
+}
+
+static void update_registration_status(MYSQL_THD thd MY_ATTRIBUTE((unused)), 
+        struct st_mysql_sys_var* var MY_ATTRIBUTE((unused)), void* var_ptr MY_ATTRIBUTE((unused)), 
+        const void* temp_storage)
+{
+    long long* statusp = (long long*)temp_storage;
+    if (*statusp == 0) {
+        an_service_endpoint_registered = 0;
+
+        if (connection != NULL) {
+            channel_destroy(connection);
+            connection = NULL;
+        }
+    } else {
+        an_service_endpoint_registered = 1;
+
+        if (connection == NULL) {
+            char port[sizeof(unsigned int) * 8 + 1];
+            memset(&port, 0, sizeof(port));
+            sprintf(port, "%u", an_service_endpoint_port);
+            connection = channel_create(an_service_endpoint_host, port);
+        }
+    }
+}
 
 static MYSQL_SYSVAR_STR(service_endpoint_host, an_service_endpoint_host,
         PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
@@ -33,7 +75,12 @@ static MYSQL_SYSVAR_UINT(service_endpoint_port, an_service_endpoint_port,
         "Port number of endpoint to which notifications are sent",
         NULL, NULL, 12345, 1, 65535, 0);
 
-static int async_notifications_notify(MYSQL_THD thd, 
+static MYSQL_SYSVAR_BOOL(service_endpoint_registered, an_service_endpoint_registered,
+        PLUGIN_VAR_NOCMDOPT,
+        "Service endpoint registration status",
+        check_registration_status, update_registration_status, 0);
+
+static int async_notifications_notify(MYSQL_THD thd MY_ATTRIBUTE((unused)), 
         mysql_event_class_t event_class,
         const void *event)
 {
@@ -57,7 +104,10 @@ static int async_notifications_notify(MYSQL_THD thd,
         memset(&buf, 0, buf_size);
 
         snprintf(buf, sizeof(buf), format, database, table, (long int)now.tv_sec, (long int)now.tv_usec);
-        channel_put(connection, buf);
+
+        if (an_service_endpoint_registered) {
+            channel_put(connection, buf);
+        }
     }
 
     return 0;
@@ -85,19 +135,14 @@ static struct st_mysql_audit async_notifications_descriptor =
 
 static int async_notifications_init(void *arg MY_ATTRIBUTE((unused)))
 {
-    char port[sizeof(unsigned int) * 8 + 1];
-    memset(&port, 0, sizeof(port));
-    sprintf(port, "%u", an_service_endpoint_port);
-    connection = create_channel(an_service_endpoint_host, port);
-
     return 0;
 }
 
 static int async_notifications_deinit(void *arg MY_ATTRIBUTE((unused)))
 {
     if (connection) {
-        destroy_channel(connection);
-        connection = 0;
+        channel_destroy(connection);
+        connection = NULL;
     }
 
     return 0;
@@ -116,6 +161,7 @@ static struct st_mysql_sys_var* system_variables[] =
 {
     MYSQL_SYSVAR(service_endpoint_host),
     MYSQL_SYSVAR(service_endpoint_port),
+    MYSQL_SYSVAR(service_endpoint_registered),
     NULL
 };
 
@@ -131,7 +177,7 @@ mysql_declare_plugin(async_notifications)
     async_notifications_init,                       /* init function (when laded)       */
     async_notifications_deinit,                     /* deinit function (when unloaded)  */
     0x0001,                                         /* version                          */
-    simple_status,                                         /* status variables                 */
+    simple_status,                                  /* status variables                 */
     system_variables,                               /* system variables                 */
     NULL,                                           /* reserved for dependency checks   */
     0,                                              /* flags for plugin                 */
