@@ -8,15 +8,14 @@
 #include <string.h>
 #include <channel.h>
 
-int get_socket_fd(const char* hostname, const char* servname);
-
 channel_t* channel_create(const char* hostname, const char* servname)
 {
     channel_t* channel = (channel_t*)calloc(1, sizeof(channel_t));
     if (channel) {
-        channel->fd = get_socket_fd(hostname, servname);
+        channel->fd = channel_get_socket_fd(hostname, servname);
         channel->hostname = strdup(hostname);
         channel->servname = strdup(servname);
+        channel->state = CONNECTED;
     }
     
     return channel;
@@ -36,20 +35,23 @@ int channel_destroy(channel_t* channel)
    return 0;
 }
 
-int channel_put(const channel_t* channel, const char* message)
+int channel_put(channel_t* channel, const char* message)
 {
-    int result = send(channel->fd, message, strlen(message), 0);
-    if (result == -1) {
+    int result = -1;
+    if (channel->state == CONNECTED) {
+        result = send(channel->fd, message, strlen(message), 0);
+        if (result == -1) {
 
-        // If sending the message failed, check what was the error and based on that,
-        // possibly reconnect and try again (once).
-        // TODO add plugin variable an_client_registered (bool)
+            // If sending the message failed, set the channel state to error,
+            // effectively refusing to send any more messages.
+            channel->state = SEND_FAIL;
+        }
     }
 
     return result;
 }
 
-int get_socket_fd(const char* hostname, const char* servname)
+int channel_get_socket_fd(const char* hostname, const char* servname)
 {
     struct addrinfo hints, *res;
 
