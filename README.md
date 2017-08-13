@@ -1,11 +1,8 @@
 # MySQL async notifications
-This mysql plugin notifies subscribers asynchronously of table access events.
+This mysql plugin notifies a connected endpoint of table access events.
 
 ## Supported mysql version
 5.7.18
-
-## Important note
-Currently this plugin only logs the table access events to a file.
 
 ## Building
 1. Download the mysql source from https://github.com/mysql/mysql-server.git
@@ -18,3 +15,12 @@ Currently this plugin only logs the table access events to a file.
 
 For more in-depth information, head over to https://dev.mysql.com/doc/refman/5.7/en/writing-plugins.html
 
+## Usage
+1. Set the following global system variables in your mysql instance:
+```async_notifications_service_endpoint_host``` (default 127.0.0.1)
+```async_notifications_service_endpoint_port``` (default 12345)
+
+2. Start listening on the given host/port
+3. Announce that you've registered:
+```mysql> set @@global.async_notifications_service_endpoint_registered = 1;```
+4. Done
