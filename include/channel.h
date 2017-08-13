@@ -1,11 +1,16 @@
 #ifndef CHANNEL_H_DEFINED
 #define CHANNEL_H_DEFINED
 
+enum channel_state { CONNECTED, SEND_FAIL };
+
 struct channel {
     int fd;
     char* hostname;
     char* servname;
+    enum channel_state state;
 };
+
+typedef enum channel_state channel_state_t;
 typedef struct channel channel_t;
 
 /**
@@ -28,6 +33,14 @@ int channel_destroy(channel_t* channel);
  *
  * @return a status code indicating success or failure.
  */
-int channel_put(const channel_t* channel, const char* message);
+int channel_put(channel_t* channel, const char* message);
+
+/**
+ * Creates a new socket, connects and returns its file descriptor number.
+ * On failure, -1 is returned and errno is set.
+ *
+ * @return the file descriptor, or -1 on failure.
+ */
+int channel_get_socket_fd(const char* hostname, const char* servname);
 
 #endif

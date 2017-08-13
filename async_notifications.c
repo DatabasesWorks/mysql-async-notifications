@@ -98,6 +98,7 @@ static int async_notifications_notify(MYSQL_THD thd MY_ATTRIBUTE((unused)),
             return errno;
         }
 
+        // 8 = length of conversion format strings
         // 19 = max length of unsigned long long when interpreted as string
         size_t buf_size = (strlen(format) - 8) + strlen(database) + strlen(table) + 19 + 1;
         char buf[buf_size];
