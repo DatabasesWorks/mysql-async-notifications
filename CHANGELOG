@@ -1,0 +1,9 @@
+0.0.2
+* channel_put is more robust
+* added channel_t.state
+
+0.0.1 
+* Introduce and use global system plugin variables:
+ - async_notifications_service_endpoint_host
+ - async_notifications_service_endpoint_port
+ - async_notifications_service_endpoint_registered
