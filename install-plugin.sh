@@ -52,7 +52,7 @@ function show_usage {
 
 function get_plugin_dir {
     sql="SHOW VARIABLES LIKE 'plugin_dir';"
-    dir=$($MYSQL --defaults-file=$MYSQL_DEFAULTS_FILE -e "$sql" -s -r | tail -n 1 | awk '{$1=""; print $0}')
+    dir=$($MYSQL --defaults-extra-file=$MYSQL_DEFAULTS_FILE -e "$sql" -s -r | tail -n 1 | awk '{$1=""; print $0}')
     echo $dir
 }
 
@@ -71,11 +71,11 @@ function uninstall_existing_plugin {
     plugin_name="${plugin_soname%.*}"
     show_plugins_sql="SHOW PLUGINS;"
     uninstall_plugin_sql="UNINSTALL PLUGIN $plugin_name;"
-    installed=`$MYSQL --defaults-file=$MYSQL_DEFAULTS_FILE -e "$show_plugins_sql" -s -r | grep -i $plugin_name | wc -l`
+    installed=`$MYSQL --defaults-extra-file=$MYSQL_DEFAULTS_FILE -e "$show_plugins_sql" -s -r | grep -i $plugin_name | wc -l`
 
     if [[ $installed -ne 0 ]] ; then
         echo "Uninstalling pre-existing plugin"
-        $MYSQL --defaults-file=$MYSQL_DEFAULTS_FILE -e "$uninstall_plugin_sql"
+        $MYSQL --defaults-extra-file=$MYSQL_DEFAULTS_FILE -e "$uninstall_plugin_sql"
         uninstall_state=$?
 
         if [[ $uninstall_state -ne 0 ]] ; then
@@ -91,7 +91,7 @@ function install_plugin {
     plugin_name="${plugin_soname%.*}"
     install_plugin_sql="INSTALL PLUGIN $plugin_name SONAME '$plugin_soname';"
 
-    $MYSQL --defaults-file=$MYSQL_DEFAULTS_FILE -e "$install_plugin_sql"
+    $MYSQL --defaults-extra-file=$MYSQL_DEFAULTS_FILE -e "$install_plugin_sql"
     return $?
 }
 
@@ -101,7 +101,7 @@ function show_default_settings {
 
     plugin_settings_sql="SHOW VARIABLES LIKE '%$plugin_name%';"
 
-    $MYSQL --defaults-file=$MYSQL_DEFAULTS_FILE -e "$plugin_settings_sql"
+    $MYSQL --defaults-extra-file=$MYSQL_DEFAULTS_FILE -e "$plugin_settings_sql"
     return $?
 }
 
