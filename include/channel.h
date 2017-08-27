@@ -36,6 +36,16 @@ int channel_destroy(channel_t* channel);
 int channel_put(channel_t* channel, const char* message);
 
 /**
+ * Retries sending the given message, reconnecting to the receiving host
+ * if the channel is in a erroneous state.
+ * If the channel is in the CONNECTED state, this method has the same
+ * effect as channel_put.
+ *
+ * @return a status code indicating success or failure.
+ */
+int channel_retry(channel_t* channel, const char* message);
+
+/**
  * Creates a new socket, connects and returns its file descriptor number.
  * On failure, -1 is returned and errno is set.
  *
