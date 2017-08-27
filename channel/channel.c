@@ -51,6 +51,30 @@ int channel_put(channel_t* channel, const char* message)
     return result;
 }
 
+int channel_retry(channel_t* channel, const char* message)
+{
+    if (channel->state != CONNECTED) {
+        // Close the socket and ignore any error status
+
+        if (channel->fd != -1) {
+            close(channel->fd);
+            channel->fd = -1;
+        }
+        int new_fd = channel_get_socket_fd(channel->hostname, channel->servname);
+        
+        // Only update the channels state if we got a valid fd.
+        if (new_fd != -1) {
+            channel->fd = new_fd;
+            channel->state = CONNECTED;
+        } else {
+            // No valid fd, no sending messages.
+            return -1;
+        }
+    }
+
+    return channel_put(channel, message);
+}
+
 int channel_get_socket_fd(const char* hostname, const char* servname)
 {
     struct addrinfo hints, *res;

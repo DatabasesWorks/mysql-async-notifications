@@ -11,6 +11,8 @@
 #define PSI_NO_INSTRUMENTATION 0
 #endif
 
+#define MAX_SEND_RETRIES 3
+
 static channel_t* connection = NULL;
 
 /* -----------------------
@@ -107,7 +109,21 @@ static int async_notifications_notify(MYSQL_THD thd MY_ATTRIBUTE((unused)),
         snprintf(buf, sizeof(buf), format, database, table, (long int)now.tv_sec, (long int)now.tv_usec);
 
         if (an_service_endpoint_registered) {
-            channel_put(connection, buf);
+            if (channel_put(connection, buf) == -1) {
+                int retries = 0;
+                while (connection->state == SEND_FAIL) {
+                    if (retries >= MAX_SEND_RETRIES) { break; }
+
+                    retries++;
+                }
+
+                if (retries >= MAX_SEND_RETRIES) {
+                    // log something, close the connection and unregister the endpoint.
+                    channel_destroy(connection);
+                    connection = NULL;
+                    an_service_endpoint_registered = 0;
+                }
+            }
         }
     }
 
