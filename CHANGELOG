@@ -1,3 +1,7 @@
+0.1.0
+* Retry sending messages (max 3 times)
+* Unregister connected client if connection keeps failing
+
 0.0.2
 * channel_put is more robust
 * added channel_t.state
