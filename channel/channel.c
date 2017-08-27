@@ -57,7 +57,6 @@ int channel_retry(channel_t* channel, const char* message)
         int new_fd;
 
         // Close the socket and ignore any error status
-
         if (channel->fd != -1) {
             close(channel->fd);
             channel->fd = -1;
