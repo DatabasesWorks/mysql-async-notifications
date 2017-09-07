@@ -92,8 +92,9 @@ static int async_notifications_notify(MYSQL_THD thd MY_ATTRIBUTE((unused)),
             (const struct mysql_event_table_access *)event;
 
         // todo fprintf
-        const char* format = "{ 'schema': '%s', 'table': '%s', 'ts': %ld%ld }\n";
+        const char* format = "{ 'schema': '%s', 'table': '%s', 'type': %d, 'ts': %ld%ld }%s";
         
+        const char* separator = "\n\n";
         const char* database = event_table->table_database.str;
         const char* table = event_table->table_name.str;
         struct timeval now;
@@ -101,13 +102,15 @@ static int async_notifications_notify(MYSQL_THD thd MY_ATTRIBUTE((unused)),
             return errno;
         }
 
-        // 8 = length of conversion format strings
+        // 12 = length of conversion format strings
+        // 10 = max length of a signed integer when interpreted as string
         // 19 = max length of unsigned long long when interpreted as string
-        buf_size = (strlen(format) - 8) + strlen(database) + strlen(table) + 19 + 1;
+        buf_size = (strlen(format) - 12) + strlen(database) + strlen(table) + 10 + 19 + 1;
         char buf[buf_size];
         memset(&buf, 0, buf_size);
 
-        snprintf(buf, sizeof(buf), format, database, table, (long int)now.tv_sec, (long int)now.tv_usec);
+        snprintf(buf, sizeof(buf), format, database, table, event_table->event_subclass, 
+                (long int)now.tv_sec, (long int)now.tv_usec, separator);
 
         if (an_service_endpoint_registered) {
             if (channel_put(connection, buf) == -1) {
