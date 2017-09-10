@@ -92,7 +92,7 @@ static int async_notifications_notify(MYSQL_THD thd MY_ATTRIBUTE((unused)),
             (const struct mysql_event_table_access *)event;
 
         // todo fprintf
-        const char* format = "{ 'schema': '%s', 'table': '%s', 'type': %d, 'ts': %ld%ld }%s";
+        const char* format = "{ \"schema\": \"%s\", \"table\": \"%s\", \"type\": %d, \"ts\": %ld%ld }%s";
         
         const char* separator = "\n\n";
         const char* database = event_table->table_database.str;
